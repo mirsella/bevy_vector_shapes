@@ -12,10 +12,7 @@ use bevy::render::sync_world::MainEntity;
 use bevy::render::sync_world::RenderEntity;
 use bevy::{
     asset::load_internal_asset,
-    core_pipeline::{
-        core_2d::Transparent2d,
-        core_3d::{AlphaMask3d, Opaque3d, Transparent3d},
-    },
+    core_pipeline::core_3d::{AlphaMask3d, Opaque3d, Transparent3d},
     prelude::*,
     reflect::GetTypeRegistration,
     render::{
@@ -28,6 +25,7 @@ use bevy::{
         view::RenderLayers,
         Extract, Render, RenderApp, RenderSet,
     },
+    sprite::SrgbTransparent2d,
 };
 use bitfield::bitfield;
 use nonmax::NonMaxU32;
@@ -331,7 +329,7 @@ fn setup_type_pipeline_2d<T: ShapeData + 'static>(app: &mut App) {
             .insert_resource(BatchedInstanceBuffer::<T>::new(
                 render_app.world().resource::<RenderDevice>(),
             ))
-            .add_render_command::<Transparent2d, DrawShape2dCommand<T>>()
+            .add_render_command::<SrgbTransparent2d, DrawShape2dCommand<T>>()
             .init_resource::<Shape2dInstances<T>>()
             .init_resource::<Shape2dMaterials<T>>()
             .init_resource::<Shape2dPipeline<T>>()
@@ -342,7 +340,7 @@ fn setup_type_pipeline_2d<T: ShapeData + 'static>(app: &mut App) {
                     prepare_shape_2d_bind_group::<T>.in_set(RenderSet::PrepareBindGroups),
                     prepare_shape_2d_texture_bind_groups::<T>.in_set(RenderSet::PrepareBindGroups),
                     queue_shapes_2d::<T>.in_set(RenderSet::Queue),
-                    batch_and_prepare_render_phase::<Transparent2d, Shape2dPipeline<T>>
+                    batch_and_prepare_render_phase::<SrgbTransparent2d, Shape2dPipeline<T>>
                         .in_set(RenderSet::PrepareResources),
                 ),
             );

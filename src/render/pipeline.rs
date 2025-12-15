@@ -1,9 +1,7 @@
 use std::any::TypeId;
 
 use bevy::{
-    core_pipeline::{
-        core_2d::CORE_2D_DEPTH_FORMAT, tonemapping::get_lut_bind_group_layout_entries,
-    },
+    core_pipeline::tonemapping::get_lut_bind_group_layout_entries,
     ecs::system::{lifetimeless::SRes, SystemParamItem},
     platform::collections::HashMap,
     prelude::*,
@@ -240,22 +238,7 @@ impl<T: ShapeData> Shape2dPipeline<T> {
         }
 
         if key.contains(ShapePipelineKey::PIPELINE_2D) {
-            depth_stencil = Some(DepthStencilState {
-                format: CORE_2D_DEPTH_FORMAT,
-                depth_write_enabled,
-                depth_compare: CompareFunction::GreaterEqual,
-                stencil: StencilState {
-                    front: StencilFaceState::IGNORE,
-                    back: StencilFaceState::IGNORE,
-                    read_mask: 0,
-                    write_mask: 0,
-                },
-                bias: DepthBiasState {
-                    constant: 0,
-                    slope_scale: 0.0,
-                    clamp: 0.0,
-                },
-            });
+            depth_stencil = None;
             shader_defs.push("PIPELINE_2D".into());
         } else {
             depth_stencil = Some(DepthStencilState {
@@ -283,9 +266,12 @@ impl<T: ShapeData> Shape2dPipeline<T> {
             shader_defs.push("DISABLE_LOCAL_AA".into())
         }
 
-        let format = match key.contains(ShapePipelineKey::HDR) {
-            true => bevy::render::view::ViewTarget::TEXTURE_FORMAT_HDR,
-            false => TextureFormat::bevy_default(),
+        let format = if key.contains(ShapePipelineKey::HDR) {
+            bevy::render::view::ViewTarget::TEXTURE_FORMAT_HDR
+        } else if key.contains(ShapePipelineKey::PIPELINE_2D) {
+            TextureFormat::Rgba8Unorm
+        } else {
+            TextureFormat::bevy_default()
         };
 
         let mut layout = vec![view_layout.clone(), shape_layout.clone()];
