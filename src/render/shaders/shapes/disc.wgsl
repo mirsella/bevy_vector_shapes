@@ -104,43 +104,37 @@ struct FragmentInput {
 #ifdef FRAGMENT
 @fragment
 fn fragment(f: FragmentInput) -> @location(0) vec4<f32> {
-    // Mask representing whether this fragment falls within the shape
     var in_shape = f.color.a;
-
+    
     // Cut off points outside the shape or within the hollow area
-    var dist = length(f.uv) - 1.;
-    in_shape *= core::step_aa(-f.thickness, dist) * core::step_aa(dist, 0.);
-
+    var dist = length(f.uv) - 1.0;
+    in_shape *= core::step_aa(-f.thickness, dist) * core::step_aa(dist, 0.0);
+    
     // Cut off points outside the allowed range of angles
     var angle = atan2(f.uv.y, f.uv.x);
-    in_shape *= core::step_aa_pd(-f.delta, angle, abs(angle)) * core::step_aa_pd(angle, f.delta, abs(angle));
-
+    in_shape *= core::step_aa(-f.delta, angle) * core::step_aa(angle, f.delta);
+    
     // Handle rounded caps
+    // Calculate cap mask unconditionally to allow derivatives (step_aa) to work
+    var nearest_angle = sign(angle) * f.delta;
+    var end_point = vec2<f32>(cos(nearest_angle), sin(nearest_angle)) * (1.0 - f.thickness / 2.0);
+    var cap_dist = length(end_point - f.uv);
+    var cap_mask = core::step_aa(cap_dist, f.thickness / 2.0);
+
     if f.cap == 2u {
-        // Take the delta in the direction towards our point
-        var nearest_angle = sign(angle) * f.delta;
-
-        // With that delta find the point at the end of the arc
-        // Use thickness to offset from the radius
-        var end_point = vec2<f32>(cos(nearest_angle), sin(nearest_angle)) * (1.0 - f.thickness / 2.0);
-
-        // Mask in points near the end point based on our thickness
-        var dist = length(end_point - f.uv);
-
-        var mask = core::step_aa(dist, f.thickness / 2.0);
-        in_shape = min(max(in_shape, mask), f.color.a);
+        in_shape = min(max(in_shape, cap_mask), f.color.a);
     }
-
+    
     var color = core::color_output(vec4<f32>(f.color.rgb, in_shape));
 #ifdef TEXTURED
     color = color * textureSample(image, image_sampler, f.texture_uv);
 #endif
-
+    
     // Discard fragments no longer in the shape
     if in_shape < 0.0001 {
         discard;
     }
-
+    
     return color;
 }
 #endif
