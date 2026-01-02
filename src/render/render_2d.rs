@@ -105,13 +105,13 @@ pub fn extract_shapes_2d<T: ShapeData>(
 
 #[allow(clippy::too_many_arguments)]
 pub fn queue_shapes_2d<T: ShapeData>(
-    transparent_2d_draw_functions: Res<DrawFunctions<Transparent2d>>,
+    transparent_2d_draw_functions: Res<DrawFunctions<bevy_sprite_render::SrgbTransparent2d>>,
     pipeline: Res<Shape2dPipeline<T>>,
     pipeline_cache: Res<PipelineCache>,
     materials: Res<Shape2dMaterials<T>>,
     instance_data: Res<Shape2dInstances<T>>,
     mut shape_pipelines: ResMut<ShapePipelines>,
-    mut phases: ResMut<ViewSortedRenderPhases<Transparent2d>>,
+    mut phases: ResMut<ViewSortedRenderPhases<bevy_sprite_render::SrgbTransparent2d>>,
     mut views: Query<(&ExtractedView, &Msaa, Option<&RenderLayers>)>,
 ) {
     let draw_function = transparent_2d_draw_functions
@@ -154,7 +154,7 @@ pub fn queue_shapes_2d<T: ShapeData>(
             for &entity in entities {
                 // SAFETY: we insert this alongside inserting into the vector we are currently iterating
                 let instance = unsafe { instance_data.get(&entity).unwrap_unchecked() };
-                transparent_phase.add(Transparent2d {
+                transparent_phase.add(bevy_sprite_render::SrgbTransparent2d {
                     entity: (entity, MainEntity::from(Entity::PLACEHOLDER)),
                     pipeline,
                     draw_function,

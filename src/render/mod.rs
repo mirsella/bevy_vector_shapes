@@ -15,10 +15,7 @@ use bevy::shader::ShaderDefVal;
 use bevy::shader::ShaderRef;
 use bevy::{
     asset::load_internal_asset,
-    core_pipeline::{
-        core_2d::Transparent2d,
-        core_3d::{AlphaMask3d, Opaque3d, Transparent3d},
-    },
+    core_pipeline::core_3d::{AlphaMask3d, Opaque3d, Transparent3d},
     prelude::*,
     reflect::GetTypeRegistration,
     render::{
@@ -330,7 +327,7 @@ fn setup_type_pipeline_2d<T: ShapeData + 'static>(app: &mut App) {
             .insert_resource(BatchedInstanceBuffer::<T>::new(
                 render_app.world().resource::<RenderDevice>(),
             ))
-            .add_render_command::<Transparent2d, DrawShape2dCommand<T>>()
+            .add_render_command::<bevy_sprite_render::SrgbTransparent2d, DrawShape2dCommand<T>>()
             .init_resource::<Shape2dInstances<T>>()
             .init_resource::<Shape2dMaterials<T>>()
             .init_resource::<Shape2dPipeline<T>>()
@@ -342,7 +339,10 @@ fn setup_type_pipeline_2d<T: ShapeData + 'static>(app: &mut App) {
                     prepare_shape_2d_texture_bind_groups::<T>
                         .in_set(RenderSystems::PrepareBindGroups),
                     queue_shapes_2d::<T>.in_set(RenderSystems::Queue),
-                    batch_and_prepare_render_phase::<Transparent2d, Shape2dPipeline<T>>
+                    batch_and_prepare_render_phase::<
+                        bevy_sprite_render::SrgbTransparent2d,
+                        Shape2dPipeline<T>,
+                    >
                         .in_set(RenderSystems::PrepareResources),
                 ),
             );
