@@ -20,6 +20,7 @@ struct Shape {
     @location(7) radius: f32,
     @location(8) start_angle: f32, 
     @location(9) end_angle: f32,
+    @location(10) padding: vec4<f32>,
 };
 
 #ifdef PER_OBJECT_BUFFER_BATCH_SIZE
@@ -56,12 +57,42 @@ fn vertex(v: Vertex) -> VertexOutput {
         shape.matrix_3
     );
 
-    var vertex_data = core::get_vertex_data(matrix, vertex.xy * shape.radius, shape.thickness, shape.flags);
+    let local_position = vertex.xy * shape.radius;
+    let origin = matrix[3].xyz;
+    let alignment = core::f_alignment(shape.flags);
 
-    // Multiply the world space position by the view projection matrix to convert to our clip position
-    out.clip_position = vertex_data.clip_pos;
-    out.uv = vertex.xy * vertex_data.uv_ratio;
-    out.thickness = core::calculate_thickness(vertex_data.thickness_data, shape.radius, shape.flags);
+    var y_basis = normalize(matrix[1].xyz);
+    var z_basis = normalize(matrix[2].xyz);
+    if alignment == 1u {
+        y_basis = normalize((view.view * vec4<f32>(0.0, 1.0, 0.0, 0.0)).xyz);
+#ifdef PIPELINE_2D
+        z_basis = transpose(view.inverse_view)[2].xyz;
+#endif
+#ifdef PIPELINE_3D
+        z_basis = normalize(view.world_position - origin);
+#endif
+    }
+
+    let x_basis = normalize(cross(y_basis, z_basis));
+    y_basis = cross(x_basis, z_basis);
+
+    let scale = core::get_scale(matrix);
+    let scaled_position = local_position * scale;
+    let thickness_data = core::get_thickness_data(
+        shape.thickness,
+        core::f_thickness_type(shape.flags),
+        origin,
+        y_basis,
+    );
+    let aa_padding = core::AA_PADDING / thickness_data.pixels_per_u;
+    let padded_position = scaled_position + sign(local_position) * aa_padding;
+    let uv_ratio = padded_position / scaled_position;
+    let world_position = origin + padded_position.x * x_basis + padded_position.y * y_basis;
+
+    out.clip_position = view.view_proj * vec4<f32>(world_position, 1.0);
+    out.thickness = core::calculate_thickness(thickness_data, shape.radius, shape.flags);
+
+    out.uv = vertex.xy * uv_ratio;
 
     // Extract cap type from flags
     out.cap = core::f_cap(shape.flags);
@@ -104,33 +135,27 @@ struct FragmentInput {
 #ifdef FRAGMENT
 @fragment
 fn fragment(f: FragmentInput) -> @location(0) vec4<f32> {
-    // Mask representing whether this fragment falls within the shape
     var in_shape = f.color.a;
-
+    
     // Cut off points outside the shape or within the hollow area
-    var dist = length(f.uv) - 1.;
-    in_shape *= core::step_aa(-f.thickness, dist) * core::step_aa(dist, 0.);
-
+    var dist = length(f.uv) - 1.0;
+    in_shape *= core::step_aa(-f.thickness, dist) * core::step_aa(dist, 0.0);
+    
     // Cut off points outside the allowed range of angles
     var angle = atan2(f.uv.y, f.uv.x);
-    in_shape *= core::step_aa_pd(-f.delta, angle, abs(angle)) * core::step_aa_pd(angle, f.delta, abs(angle));
+    in_shape *= core::step_aa(-f.delta, angle) * core::step_aa(angle, f.delta);
+    
+    // Calculate cap mask unconditionally to allow derivatives (step_aa) to work
+    var nearest_angle = sign(angle) * f.delta;
+    var end_point = vec2<f32>(cos(nearest_angle), sin(nearest_angle)) * (1.0 - f.thickness / 2.0);
+    var cap_dist = length(end_point - f.uv);
+    var cap_mask = core::step_aa(cap_dist, f.thickness / 2.0);
 
     // Handle rounded caps
     if f.cap == 2u {
-        // Take the delta in the direction towards our point
-        var nearest_angle = sign(angle) * f.delta;
-
-        // With that delta find the point at the end of the arc
-        // Use thickness to offset from the radius
-        var end_point = vec2<f32>(cos(nearest_angle), sin(nearest_angle)) * (1.0 - f.thickness / 2.0);
-
-        // Mask in points near the end point based on our thickness
-        var dist = length(end_point - f.uv);
-
-        var mask = core::step_aa(dist, f.thickness / 2.0);
-        in_shape = min(max(in_shape, mask), f.color.a);
+        in_shape = min(max(in_shape, cap_mask), f.color.a);
     }
-
+    
     var color = core::color_output(vec4<f32>(f.color.rgb, in_shape));
 #ifdef TEXTURED
     color = color * textureSample(image, image_sampler, f.texture_uv);
