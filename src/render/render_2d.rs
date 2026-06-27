@@ -3,12 +3,14 @@ use bevy::{
     ecs::entity::hash_map::EntityHashMap,
     platform::collections::HashMap,
     render::{
+        camera::ExtractedCamera,
         render_phase::{DrawFunctions, PhaseItemExtraIndex},
         render_resource::*,
         sync_world::{MainEntity, RenderEntity},
         view::ExtractedView,
         Extract,
     },
+    sprite_render::SrgbTransparent2d,
 };
 
 #[derive(Resource, Deref, DerefMut)]
@@ -125,14 +127,19 @@ pub fn extract_shapes_2d<T: ShapeData>(
 
 #[allow(clippy::too_many_arguments)]
 pub fn queue_shapes_2d<T: ShapeData>(
-    transparent_2d_draw_functions: Res<DrawFunctions<Transparent2d>>,
+    transparent_2d_draw_functions: Res<DrawFunctions<SrgbTransparent2d>>,
     pipeline: Res<Shape2dPipeline<T>>,
     pipeline_cache: Res<PipelineCache>,
     materials: Res<Shape2dMaterials<T>>,
     instance_data: Res<Shape2dInstances<T>>,
     mut shape_pipelines: ResMut<ShapePipelines>,
-    mut phases: ResMut<ViewSortedRenderPhases<Transparent2d>>,
-    views: Query<(&ExtractedView, &Msaa, Option<&RenderLayers>)>,
+    mut phases: ResMut<ViewSortedRenderPhases<SrgbTransparent2d>>,
+     views: Query<(
+        &ExtractedView,
+        &ExtractedCamera,
+        &Msaa,
+        Option<&RenderLayers>,
+    )>,
 ) {
     let draw_function = transparent_2d_draw_functions
         .read()
@@ -154,7 +161,7 @@ pub fn queue_shapes_2d<T: ShapeData>(
         } else {
             views
                 .iter()
-                .filter(|(_, _, layers)| {
+                .filter(|(_, _, _, layers)| {
                     layers
                         .unwrap_or(&default_layers)
                         .intersects(&material.render_layers.0)
@@ -162,7 +169,7 @@ pub fn queue_shapes_2d<T: ShapeData>(
                 .for_each(|view| visible_views.push(view))
         };
 
-        for &(view, msaa, _) in visible_views.iter() {
+        for &(view, camera, msaa, _) in visible_views.iter() {
             let Some(transparent_phase) = phases.get_mut(&view.retained_view_entity) else {
                 continue;
             };
@@ -174,13 +181,17 @@ pub fn queue_shapes_2d<T: ShapeData>(
                 &pipeline_cache,
                 pipeline.as_ref(),
                 view_key,
-                view.target_format,
+                if camera.hdr {
+                    TextureFormat::Rgba16Float
+                } else {
+                    TextureFormat::Rgba8Unorm
+                },
             );
 
             for &entity in entities {
                 // SAFETY: we insert this alongside inserting into the vector we are currently iterating
                 let (_, instance) = unsafe { instance_data.get(&entity).unwrap_unchecked() };
-                transparent_phase.add_transient(Transparent2d {
+                transparent_phase.add_transient(SrgbTransparent2d {
                     entity: (entity, MainEntity::from(entity)),
                     pipeline,
                     draw_function,
