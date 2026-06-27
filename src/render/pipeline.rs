@@ -1,9 +1,7 @@
 use std::any::TypeId;
 
 use bevy::{
-    core_pipeline::{
-        core_2d::CORE_2D_DEPTH_FORMAT, tonemapping::get_lut_bind_group_layout_entries,
-    },
+    core_pipeline::tonemapping::get_lut_bind_group_layout_entries,
     ecs::system::{lifetimeless::SRes, SystemParamItem},
     mesh::VertexBufferLayout,
     platform::collections::HashMap,
@@ -196,7 +194,7 @@ impl<T: ShapeData> Shape2dPipeline<T> {
         target_format: TextureFormat,
     ) -> RenderPipelineDescriptor {
         let mut shader_defs = Vec::new();
-        let (label, blend, depth_stencil, depth_write_enabled);
+        let (label, blend, depth_write_enabled);
 
         let pass = key.intersection(ShapePipelineKey::BLEND_RESERVED_BITS);
 
@@ -240,26 +238,13 @@ impl<T: ShapeData> Shape2dPipeline<T> {
             depth_write_enabled = true;
         }
 
-        if key.contains(ShapePipelineKey::PIPELINE_2D) {
-            depth_stencil = Some(DepthStencilState {
-                format: CORE_2D_DEPTH_FORMAT,
-                depth_write_enabled: Some(depth_write_enabled),
-                depth_compare: Some(CompareFunction::GreaterEqual),
-                stencil: StencilState {
-                    front: StencilFaceState::IGNORE,
-                    back: StencilFaceState::IGNORE,
-                    read_mask: 0,
-                    write_mask: 0,
-                },
-                bias: DepthBiasState {
-                    constant: 0,
-                    slope_scale: 0.0,
-                    clamp: 0.0,
-                },
-            });
+        let depth_stencil = if key.contains(ShapePipelineKey::PIPELINE_2D) {
+            // 2D shapes render in SrgbTransparent2d, whose pass has no depth attachment.
             shader_defs.push("PIPELINE_2D".into());
+            None
         } else {
-            depth_stencil = Some(DepthStencilState {
+            shader_defs.push("PIPELINE_3D".into());
+            Some(DepthStencilState {
                 format: TextureFormat::Depth32Float,
                 depth_write_enabled: Some(depth_write_enabled),
                 depth_compare: Some(CompareFunction::Greater),
@@ -274,9 +259,8 @@ impl<T: ShapeData> Shape2dPipeline<T> {
                     slope_scale: 0.0,
                     clamp: 0.0,
                 },
-            });
-            shader_defs.push("PIPELINE_3D".into());
-        }
+            })
+        };
 
         if key.contains(ShapePipelineKey::LOCAL_AA) {
             shader_defs.push("LOCAL_AA".into());
