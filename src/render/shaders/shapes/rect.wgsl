@@ -18,6 +18,7 @@ struct Shape {
 
     @location(7) size: vec2<f32>,
     @location(8) corner_radii: vec4<f32>,
+    @location(9) padding: vec4<f32>,
 }
 
 #ifdef PER_OBJECT_BUFFER_BATCH_SIZE
@@ -52,7 +53,6 @@ fn vertex(v: Vertex) -> VertexOutput {
         shape.matrix_3
     );
     let shortest_side = min(shape.size.x, shape.size.y);
-    let half_shortest_side = shortest_side / 2.0;
 
     // Our vertex outputs should all be in uv space so scale our uv space such that the shortest side is of length 1
     out.size = shape.size / shortest_side;
@@ -79,14 +79,14 @@ fn vertex(v: Vertex) -> VertexOutput {
 
     out.clip_position = view.view_proj * matrix * vec4<f32>(padded_local_position, 0.0, 1.0);
     out.uv = vertex.xy * out.size * uv_ratio;
-    out.thickness = core::calculate_thickness(thickness_data, half_shortest_side, shape.flags);
+    out.thickness = core::calculate_thickness(thickness_data, shortest_side / 2.0, shape.flags);
 #endif
 
 #ifdef PIPELINE_3D
     let vertex_data = core::get_vertex_data(matrix, vertex.xy * shape.size / 2.0, shape.thickness, shape.flags);
     out.clip_position = vertex_data.clip_pos;
     out.uv = vertex.xy * out.size * vertex_data.uv_ratio;
-    out.thickness = core::calculate_thickness(vertex_data.thickness_data, half_shortest_side, shape.flags);
+    out.thickness = core::calculate_thickness(vertex_data.thickness_data, shortest_side / 2.0, shape.flags);
 #endif
 
     // Our corner radii cannot be more than half the shortest side so cap them
