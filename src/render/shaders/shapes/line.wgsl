@@ -149,33 +149,15 @@ struct FragmentInput {
 fn fragment(f: FragmentInput) -> @location(0) vec4<f32> {
     var in_shape = f.color.a;
 
-    // If we have rounded caps mask them
-    if f.cap_ratio > 0.0 {
-        // Lines are symmetrical across both axis so we can mirror our point 
-        //  onto the positive x and y axis by taking the absolute value
-        var pos = abs(f.uv);
+    // Calculate both cap masks unconditionally so derivatives used by step_aa stay valid.
+    var pos = abs(f.uv);
+    var to_end_cap = (pos.y - 1.) / max(f.cap_ratio, 1e-6);
+    pos.y = max(0., 1. + to_end_cap);
+    var dist = length(pos);
+    var rounded = core::step_aa(dist, 1.);
 
-        // Our x value already represents the x distance to our line so we now must transform our y value
-        // We want y = 0 to represent being within the body of the line, and 1 to be at the tip of our cap
-
-        // Calculate the -y distance to the end of the quad in caps
-        // The end of the quad is y = 1 so subtract to get the distance and then scale by cap length
-        var to_end_cap = (pos.y - 1.) / f.cap_ratio;
-
-        // We want y = 0 when the amount of caps until the end of the quad is 1 
-        //  and y = 1 when the number of quads is 0 so take 1 + to_end_cap
-        // If the total is negative we are within the line so clamp to > 0
-        pos.y = max(0., 1. + to_end_cap);
-
-        // We now have the shortest vector from our point to the line so take the distance
-        var dist = length(pos);
-
-        // Mask out corners
-        in_shape = min(in_shape, core::step_aa(dist, 1.));
-    } else {
-        // Simple rectangle sdf for no caps or square caps
-        in_shape = min(in_shape, core::step_aa(abs(f.uv.x), 1.) * core::step_aa(abs(f.uv.y), 1.0));
-    }
+    var square = core::step_aa(abs(f.uv.x), 1.) * core::step_aa(abs(f.uv.y), 1.0);
+    in_shape = min(in_shape, select(square, rounded, f.cap_ratio > 0.0));
 
     var color = core::color_output(vec4<f32>(f.color.rgb, in_shape));
 #ifdef TEXTURED
