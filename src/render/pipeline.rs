@@ -340,23 +340,6 @@ impl<T: ShapeData> GetBatchData for Shape2dPipeline<T> {
         Some((instance.data.clone(), Some(((), *material_index))))
     }
 }
-impl<T: ShapeData> GetBatchData for Shape2dPipeline<T> {
-    type Param = SRes<Shape2dInstances<T>>;
-    type BatchCompareData = ShapePipelineMaterial;
-    type BatchSetCompareData = ();
-    type BufferData = T;
-
-    fn get_batch_data(
-        instances: &SystemParamItem<Self::Param>,
-        (entity, _main_entity): (Entity, MainEntity),
-    ) -> Option<(
-        Self::BufferData,
-        Option<(Self::BatchSetCompareData, Self::BatchCompareData)>,
-    )> {
-        let instance = instances.get(&entity)?;
-        Some((instance.data.clone(), Some(((), instance.material.clone()))))
-    }
-}
 
 #[derive(Resource, Deref, DerefMut)]
 pub struct Shape3dPipeline<T: ShapeData>(Shape2dPipeline<T>);
@@ -382,22 +365,5 @@ impl<T: ShapeData> GetBatchData for Shape3dPipeline<T> {
     )> {
         let (material_index, instance) = instances.get(&main_entity.id())?;
         Some((instance.data.clone(), Some(((), *material_index))))
-    }
-}
-impl<T: ShapeData> GetBatchData for Shape3dPipeline<T> {
-    type Param = SRes<Shape3dInstances<T>>;
-    type BatchCompareData = ShapePipelineMaterial;
-    type BatchSetCompareData = ();
-    type BufferData = T;
-
-    fn get_batch_data(
-        instances: &SystemParamItem<Self::Param>,
-        (entity, _main_entity): (Entity, MainEntity),
-    ) -> Option<(
-        Self::BufferData,
-        Option<(Self::BatchSetCompareData, Self::BatchCompareData)>,
-    )> {
-        let instance = instances.get(&entity)?;
-        Some((instance.data.clone(), Some(((), instance.material.clone()))))
     }
 }

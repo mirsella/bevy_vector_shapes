@@ -83,10 +83,36 @@ fn vertex(v: Vertex) -> VertexOutput {
 #endif
 
 #ifdef PIPELINE_3D
-    let vertex_data = core::get_vertex_data(matrix, vertex.xy * shape.size / 2.0, shape.thickness, shape.flags);
-    out.clip_position = vertex_data.clip_pos;
-    out.uv = vertex.xy * out.size * vertex_data.uv_ratio;
-    out.thickness = core::calculate_thickness(vertex_data.thickness_data, shortest_side / 2.0, shape.flags);
+    let local_position = vertex.xy * shape.size / 2.0;
+    let origin = matrix[3].xyz;
+    let alignment = core::f_alignment(shape.flags);
+
+    var y_basis = normalize(matrix[1].xyz);
+    var z_basis = normalize(matrix[2].xyz);
+    if alignment == 1u {
+        y_basis = normalize((view.view * vec4<f32>(0.0, 1.0, 0.0, 0.0)).xyz);
+        z_basis = normalize(view.world_position - origin);
+    }
+
+    let x_basis = normalize(cross(y_basis, z_basis));
+    y_basis = cross(x_basis, z_basis);
+
+    let scale = core::get_scale(matrix);
+    let scaled_position = local_position * scale;
+    let thickness_data = core::get_thickness_data(
+        shape.thickness,
+        core::f_thickness_type(shape.flags),
+        origin,
+        y_basis,
+    );
+    let aa_padding = core::AA_PADDING / thickness_data.pixels_per_u;
+    let padded_position = scaled_position + sign(local_position) * aa_padding;
+    let uv_ratio = padded_position / scaled_position;
+    let world_position = origin + padded_position.x * x_basis + padded_position.y * y_basis;
+
+    out.clip_position = view.view_proj * vec4<f32>(world_position, 1.0);
+    out.uv = vertex.xy * out.size * uv_ratio;
+    out.thickness = core::calculate_thickness(thickness_data, shortest_side / 2.0, shape.flags);
 #endif
 
     // Our corner radii cannot be more than half the shortest side so cap them
@@ -148,40 +174,12 @@ fn fragment(f: FragmentInput) -> @location(0) vec4<f32> {
         * core::step_aa(-f.thickness, signed_distance)
         * core::step_aa(signed_distance, 0.0);
 
-<<<<<<< HEAD
-    // Use quadrant to determine which corner radii to use
-    var quadrant = quadrant(f.uv);
-    var radii = f.corner_radii[quadrant];
-
-    // Calculate our positions distance from the rectangle
-    var dist = rectSDF(f.uv, f.size - radii) - radii;
-    
-    // Cut off points outside the shape or within the hollow area
-    in_shape *= core::step_aa(-f.thickness, dist) * core::step_aa(dist, 0.);
-
     // Discard fragments no longer in the shape before sampling any texture
-    if in_shape < 0.0001 {
+    if alpha < 0.0001 {
         discard;
     }
 
-    var color = core::color_output(vec4<f32>(f.color.rgb, in_shape));
-||||||| parent of 019ca09 (Fix Bevy 0.19 sRGB rendering)
-    // Use quadrant to determine which corner radii to use
-    var quadrant = quadrant(f.uv);
-    var radii = f.corner_radii[quadrant];
-
-    // Calculate our positions distance from the rectangle
-    var dist = rectSDF(f.uv, f.size - radii) - radii;
-    
-    // Cut off points outside the shape or within the hollow area
-    in_shape *= core::step_aa(-f.thickness, dist) * core::step_aa(dist, 0.);
-
-
-
-    var color = core::color_output(vec4<f32>(f.color.rgb, in_shape));
-=======
     var color = core::color_output(vec4<f32>(f.color.rgb, alpha));
->>>>>>> 019ca09 (Fix Bevy 0.19 sRGB rendering)
 #ifdef TEXTURED
     color = color * textureSample(image, image_sampler, f.texture_uv);
 #endif
